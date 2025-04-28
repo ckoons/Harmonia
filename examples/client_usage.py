@@ -429,5 +429,226 @@ async def main():
         logger.error(f"Unexpected error: {e}")
 
 
+async def template_instantiation_example():
+    """Example of using templates and instantiating workflows from them."""
+    logger.info("=== Template Instantiation Example ===")
+    
+    # Create a Harmonia client
+    client = await get_harmonia_client()
+    
+    try:
+        # Define a workflow with parameters
+        workflow_name = "Parametrized Data Processing"
+        
+        # Define the tasks with parameters
+        tasks = [
+            {
+                "id": "fetch_data",
+                "type": "data_source",
+                "config": {
+                    "source": "${param.data_source}",
+                    "format": "${param.data_format}"
+                },
+                "next": "process_data"
+            },
+            {
+                "id": "process_data",
+                "type": "data_processing",
+                "config": {
+                    "operations": "${param.processing_operations}",
+                    "filter": "${param.filter_criteria}"
+                },
+                "next": "output_data"
+            },
+            {
+                "id": "output_data",
+                "type": "data_output",
+                "config": {
+                    "destination": "${param.output_destination}",
+                    "format": "${param.output_format}"
+                }
+            }
+        ]
+        
+        # Create the workflow
+        logger.info(f"Creating template workflow: {workflow_name}")
+        workflow = await client.create_workflow(
+            name=workflow_name,
+            tasks=tasks
+        )
+        
+        workflow_id = workflow["workflow_id"]
+        logger.info(f"Created workflow with ID: {workflow_id}")
+        
+        # Create a template from the workflow
+        template_name = "Data Processing Template"
+        parameters = {
+            "data_source": {
+                "type": "string",
+                "required": True,
+                "description": "Source of the data to process"
+            },
+            "data_format": {
+                "type": "string",
+                "required": False,
+                "default": "csv",
+                "description": "Format of the input data"
+            },
+            "processing_operations": {
+                "type": "array",
+                "required": True,
+                "description": "List of operations to perform"
+            },
+            "filter_criteria": {
+                "type": "object",
+                "required": False,
+                "default": {},
+                "description": "Criteria for filtering data"
+            },
+            "output_destination": {
+                "type": "string",
+                "required": True,
+                "description": "Destination for processed data"
+            },
+            "output_format": {
+                "type": "string",
+                "required": False,
+                "default": "json",
+                "description": "Format for the output data"
+            }
+        }
+        
+        logger.info(f"Creating template: {template_name}")
+        template = await client.create_template(
+            name=template_name,
+            workflow_definition_id=workflow_id,
+            parameters=parameters
+        )
+        
+        template_id = template["template_id"]
+        logger.info(f"Created template with ID: {template_id}")
+        
+        # Instantiate the template with parameter values
+        parameter_values = {
+            "data_source": "s3://example-bucket/data.csv",
+            "data_format": "csv",
+            "processing_operations": [
+                {"type": "normalize", "field": "values"},
+                {"type": "aggregate", "function": "sum", "field": "values"}
+            ],
+            "filter_criteria": {
+                "date_range": {"start": "2025-01-01", "end": "2025-12-31"},
+                "categories": ["category1", "category2"]
+            },
+            "output_destination": "s3://example-bucket/processed/",
+            "output_format": "parquet"
+        }
+        
+        logger.info(f"Instantiating template {template_id}")
+        instantiation = await client.instantiate_template(
+            template_id=template_id,
+            parameter_values=parameter_values
+        )
+        
+        instantiated_workflow_id = instantiation["workflow_id"]
+        logger.info(f"Created workflow from template: {instantiated_workflow_id}")
+        
+        # Execute the instantiated workflow
+        logger.info(f"Executing instantiated workflow {instantiated_workflow_id}")
+        execution = await client.execute_workflow(
+            workflow_id=instantiated_workflow_id
+        )
+        
+        execution_id = execution["execution_id"]
+        logger.info(f"Started execution with ID: {execution_id}")
+        
+        # Get status
+        status = await client.get_workflow_status(execution_id)
+        logger.info(f"Execution status: {status['status']}")
+    
+    except Exception as e:
+        logger.error(f"Error in template instantiation example: {e}")
+    
+    finally:
+        # Close the client
+        await client.close()
+
+
+async def websocket_monitoring_example():
+    """Example of monitoring workflow execution via WebSocket."""
+    logger.info("=== WebSocket Monitoring Example ===")
+    
+    # This would be implemented with a real WebSocket client
+    # Here we'll simulate the concept
+    
+    # Create a workflow to monitor
+    client = await get_harmonia_client()
+    
+    try:
+        # Create a simple workflow
+        workflow = await client.create_workflow(
+            name="WebSocket Monitored Workflow",
+            tasks=[
+                {
+                    "id": "task1",
+                    "type": "simple_task",
+                    "next": "task2"
+                },
+                {
+                    "id": "task2",
+                    "type": "simple_task"
+                }
+            ]
+        )
+        
+        workflow_id = workflow["workflow_id"]
+        logger.info(f"Created workflow with ID: {workflow_id}")
+        
+        # Execute the workflow
+        execution = await client.execute_workflow(workflow_id=workflow_id)
+        execution_id = execution["execution_id"]
+        logger.info(f"Started execution with ID: {execution_id}")
+        
+        # In a real application, we would connect to the WebSocket endpoint:
+        # ws://localhost:8002/ws/executions/{execution_id}
+        logger.info(f"Would connect to: ws://localhost:8002/ws/executions/{execution_id}")
+        
+        # Simulate receiving events
+        events = [
+            {"event_type": "workflow_started", "execution_id": execution_id, "timestamp": time.time()},
+            {"event_type": "task_started", "execution_id": execution_id, "task_id": "task1", "timestamp": time.time()},
+            {"event_type": "task_completed", "execution_id": execution_id, "task_id": "task1", "timestamp": time.time()},
+            {"event_type": "task_started", "execution_id": execution_id, "task_id": "task2", "timestamp": time.time()},
+            {"event_type": "task_completed", "execution_id": execution_id, "task_id": "task2", "timestamp": time.time()},
+            {"event_type": "workflow_completed", "execution_id": execution_id, "timestamp": time.time()}
+        ]
+        
+        logger.info("Simulating WebSocket events:")
+        for event in events:
+            logger.info(f"  Event: {event['event_type']}, Task: {event.get('task_id', 'N/A')}")
+            await asyncio.sleep(0.5)  # Simulate delay between events
+    
+    except Exception as e:
+        logger.error(f"Error in WebSocket monitoring example: {e}")
+    
+    finally:
+        # Close the client
+        await client.close()
+
+
+async def main():
+    """Run all examples."""
+    try:
+        await simple_workflow_example()
+        await parallel_workflow_example()
+        await workflow_state_example()
+        await error_handling_example()
+        await template_instantiation_example()
+        await websocket_monitoring_example()
+    
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+
+
 if __name__ == "__main__":
     asyncio.run(main())

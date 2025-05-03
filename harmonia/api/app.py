@@ -17,7 +17,7 @@ from uuid import UUID, uuid4
 from datetime import datetime, timedelta
 
 import uvicorn
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, WebSocket, BackgroundTasks, Query, Path
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, WebSocket, BackgroundTasks, Query, Path, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -55,7 +55,7 @@ from harmonia.models.webhook import (
     WebhookDefinition,
     WebhookEvent
 )
-from tekton.utils.tekton_errors import NotFoundError, ValidationError, AuthorizationError
+from tekton.utils.tekton_errors import TektonNotFoundError as NotFoundError, DataValidationError as ValidationError, AuthorizationError
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -332,9 +332,10 @@ async def startup_event():
     global workflow_engine
     
     try:
-        # Get environment variables
+        # Get environment variables with standardized port configuration
+        from ..utils.port_config import get_hermes_url
         data_dir = os.environ.get("HARMONIA_DATA_DIR", os.path.expanduser("~/.harmonia"))
-        hermes_url = os.environ.get("HERMES_URL", "http://localhost:5000/api")
+        hermes_url = get_hermes_url()
         log_level = os.environ.get("LOG_LEVEL", "INFO")
         
         # Create startup instructions
@@ -1583,6 +1584,27 @@ async def get_status():
         }
     )
 
+# --- Health Check Endpoint (Standard Single Port Architecture) ---
+
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint for the Harmonia service.
+    Following the Tekton Single Port Architecture standard.
+    
+    Returns:
+        Health status information
+    """
+    # Check if workflow engine is initialized
+    engine_status = "running" if workflow_engine else "not_initialized"
+    
+    return {
+        "status": "ok" if engine_status == "running" else "degraded",
+        "component": "harmonia",
+        "version": "0.1.0",
+        "message": "Harmonia is healthy" if engine_status == "running" else "Harmonia engine not fully initialized"
+    }
+
 
 # Include routers in main app
 app.include_router(router)
@@ -1592,8 +1614,21 @@ app.include_router(events_router)
 
 # Main entry point
 if __name__ == "__main__":
-    # Get port from environment variable
-    port = int(os.environ.get("HARMONIA_PORT", "8002"))
+    # Get port from environment variable using standardized port config
+    from ..utils.port_config import get_harmonia_port, verify_component_port
+    import sys
+    
+    # Get configured port
+    port = get_harmonia_port()
+    
+    # Check port availability
+    port_available, message = verify_component_port("harmonia")
+    if not port_available:
+        print(f"ERROR: {message}")
+        print(f"Please make sure port {port} is available before starting Harmonia")
+        sys.exit(1)
+    
+    print(f"Starting Harmonia on port {port}...")
     
     # Start server
     uvicorn.run(app, host="0.0.0.0", port=port)

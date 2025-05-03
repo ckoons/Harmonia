@@ -10,7 +10,7 @@ from enum import Enum, auto
 from typing import Dict, List, Optional, Union, Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class TaskType(str, Enum):
@@ -60,18 +60,18 @@ class RetryPolicy(BaseModel):
     backoff_multiplier: float = Field(2.0, description="Multiplier for exponential backoff")
     retry_on: List[str] = Field(default_factory=list, description="List of error types to retry on")
     
-    @validator("max_retries")
+    @field_validator("max_retries")
     def validate_max_retries(cls, v):
         """Validate max_retries is non-negative."""
         if v < 0:
             raise ValueError("max_retries must be non-negative")
         return v
     
-    @validator("initial_delay", "max_delay", "backoff_multiplier")
-    def validate_positive(cls, v, field):
+    @field_validator("initial_delay", "max_delay", "backoff_multiplier")
+    def validate_positive(cls, v, info):
         """Validate numeric fields are positive."""
         if v <= 0:
-            raise ValueError(f"{field.name} must be positive")
+            raise ValueError(f"{info.field_name} must be positive")
         return v
 
 
@@ -90,7 +90,7 @@ class TaskDefinition(BaseModel):
     description: Optional[str] = Field(None, description="Description of the task")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata for the task")
     
-    @validator("id")
+    @field_validator("id")
     def validate_id(cls, v):
         """Validate task ID format."""
         if not v or not v.strip():

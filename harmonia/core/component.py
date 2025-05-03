@@ -12,9 +12,14 @@ import time
 from typing import Dict, List, Any, Optional, Union, Callable, Type, Protocol
 from dataclasses import dataclass, field
 
-from tekton.utils.tekton_http import HttpClient
+from tekton.utils.tekton_http import HTTPClient
 from tekton.utils.tekton_context import ContextManager
-from tekton.utils.tekton_errors import ComponentNotFoundError, ActionNotFoundError
+from tekton.utils.tekton_errors import ComponentNotFoundError, TektonNotFoundError
+
+# Define local error class since it's missing from tekton_errors
+class ActionNotFoundError(TektonNotFoundError):
+    """Raised when an action is not found for a component."""
+    pass
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -78,14 +83,14 @@ class StandardComponentAdapter:
     retry_count: int = 3
     retry_delay: float = 1.0
     context_manager: Optional[ContextManager] = None
-    http_client: Optional[HttpClient] = None
+    http_client: Optional[HTTPClient] = None
     capabilities: Dict[str, Any] = field(default_factory=dict)
     action_schemas: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     
     def __post_init__(self):
         """Initialize the HTTP client if not provided."""
         if not self.http_client:
-            self.http_client = HttpClient(
+            self.http_client = HTTPClient(
                 base_url=self.base_url,
                 timeout=self.timeout
             )
@@ -340,7 +345,7 @@ class ComponentRegistry:
                 return []
             
             # Create HTTP client for Hermes
-            client = HttpClient(base_url=hermes_url)
+            client = HTTPClient(base_url=hermes_url)
             
             # Fetch component registry from Hermes
             response = await client.get("/api/components")

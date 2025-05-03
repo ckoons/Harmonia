@@ -25,7 +25,8 @@ fi
 cd "$SCRIPT_DIR"
 
 # Set environment variables
-export HARMONIA_PORT=8002
+# Using standardized Tekton port assignments (from port_assignments.md)
+export HARMONIA_PORT=8007
 export PYTHONPATH="$SCRIPT_DIR:$TEKTON_ROOT:$PYTHONPATH"
 
 # Create log directories

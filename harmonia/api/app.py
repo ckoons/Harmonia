@@ -405,6 +405,10 @@ async def startup_event():
             )
         
         logger.info("Workflow engine initialized successfully")
+        
+        # Set workflow engine for FastMCP and initialize
+        set_workflow_engine(workflow_engine)
+        await fastmcp_startup()
     
     except Exception as e:
         logger.error(f"Error initializing workflow engine: {e}")
@@ -415,6 +419,8 @@ async def shutdown_event():
     """Shut down the workflow engine."""
     global workflow_engine
     if workflow_engine:
+        # Shut down FastMCP
+        await fastmcp_shutdown()
         # Placeholder for cleanup code
         logger.info("Shutting down workflow engine")
 
@@ -1606,10 +1612,14 @@ async def health_check():
     }
 
 
+# Import FastMCP router
+from .fastmcp_endpoints import fastmcp_router, fastmcp_startup, fastmcp_shutdown, set_workflow_engine
+
 # Include routers in main app
 app.include_router(router)
 app.include_router(websocket_router)
 app.include_router(events_router)
+app.include_router(fastmcp_router, prefix="/api/mcp/v2")  # Mount FastMCP router under /api/mcp/v2
 
 
 # Main entry point

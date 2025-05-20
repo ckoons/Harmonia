@@ -19,6 +19,7 @@ setup(
         "python-dotenv>=0.19.0",
         "asyncio>=3.4.3",
         "typing_extensions>=4.0.0",
+        "tekton-core>=0.1.0",
     ],
     extras_require={
         "dev": [

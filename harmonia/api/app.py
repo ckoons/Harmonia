@@ -1612,6 +1612,30 @@ async def health_check():
     }
 
 
+@app.get("/")
+async def root():
+    """
+    Root endpoint - provides basic information about Harmonia.
+    
+    Returns:
+        Basic service information
+    """
+    return {
+        "name": "Harmonia Workflow System",
+        "version": "0.1.0",
+        "status": "running" if workflow_engine else "initializing",
+        "endpoints": [
+            "/health",
+            "/api/workflows",
+            "/api/templates", 
+            "/api/components",
+            "/ws",
+            "/events"
+        ],
+        "message": "Harmonia workflow orchestration service"
+    }
+
+
 # Import FastMCP router
 from .fastmcp_endpoints import fastmcp_router, fastmcp_startup, fastmcp_shutdown, set_workflow_engine
 

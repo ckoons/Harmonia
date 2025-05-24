@@ -333,7 +333,7 @@ async def startup_event():
     
     try:
         # Get environment variables with standardized port configuration
-        from ..utils.port_config import get_hermes_url
+        from tekton.utils.port_config import get_hermes_url
         data_dir = os.environ.get("HARMONIA_DATA_DIR", os.path.expanduser("~/.harmonia"))
         hermes_url = get_hermes_url()
         log_level = os.environ.get("LOG_LEVEL", "INFO")
@@ -1649,18 +1649,11 @@ app.include_router(fastmcp_router, prefix="/api/mcp/v2")  # Mount FastMCP router
 # Main entry point
 if __name__ == "__main__":
     # Get port from environment variable using standardized port config
-    from ..utils.port_config import get_harmonia_port, verify_component_port
+    from tekton.utils.port_config import get_harmonia_port
     import sys
     
     # Get configured port
     port = get_harmonia_port()
-    
-    # Check port availability
-    port_available, message = verify_component_port("harmonia")
-    if not port_available:
-        print(f"ERROR: {message}")
-        print(f"Please make sure port {port} is available before starting Harmonia")
-        sys.exit(1)
     
     print(f"Starting Harmonia on port {port}...")
     

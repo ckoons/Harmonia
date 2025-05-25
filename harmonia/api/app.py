@@ -9,6 +9,7 @@ API following the Single Port Architecture, including:
 """
 
 import os
+import sys
 import json
 import logging
 import asyncio
@@ -22,6 +23,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+# Import Hermes registration utility
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "shared", "utils"))
+from hermes_registration import HermesRegistration, heartbeat_loop
 
 from harmonia.core.engine import WorkflowEngine
 from harmonia.core.state import StateManager
@@ -332,8 +337,33 @@ async def startup_event():
     global workflow_engine
     
     try:
+        # Register with Hermes
+        from tekton.utils.port_config import get_harmonia_port, get_hermes_url
+        port = get_harmonia_port()
+        
+        hermes_registration = HermesRegistration()
+        await hermes_registration.register_component(
+            component_name="harmonia",
+            port=port,
+            version="0.1.0",
+            capabilities=[
+                "workflow_orchestration",
+                "state_management",
+                "event_streaming",
+                "component_coordination"
+            ],
+            metadata={
+                "description": "Workflow orchestration and state management",
+                "category": "workflow"
+            }
+        )
+        app.state.hermes_registration = hermes_registration
+        
+        # Start heartbeat task
+        if hermes_registration.is_registered:
+            asyncio.create_task(heartbeat_loop(hermes_registration, "harmonia"))
+        
         # Get environment variables with standardized port configuration
-        from tekton.utils.port_config import get_hermes_url
         data_dir = os.environ.get("HARMONIA_DATA_DIR", os.path.expanduser("~/.harmonia"))
         hermes_url = get_hermes_url()
         log_level = os.environ.get("LOG_LEVEL", "INFO")
@@ -418,6 +448,11 @@ async def startup_event():
 async def shutdown_event():
     """Shut down the workflow engine."""
     global workflow_engine
+    
+    # Deregister from Hermes
+    if hasattr(app.state, "hermes_registration") and app.state.hermes_registration:
+        await app.state.hermes_registration.deregister("harmonia")
+    
     if workflow_engine:
         # Shut down FastMCP
         await fastmcp_shutdown()
@@ -1601,14 +1636,18 @@ async def health_check():
     Returns:
         Health status information
     """
+    from tekton.utils.port_config import get_harmonia_port
+    port = get_harmonia_port()
+    
     # Check if workflow engine is initialized
     engine_status = "running" if workflow_engine else "not_initialized"
     
     return {
-        "status": "ok" if engine_status == "running" else "degraded",
+        "status": "healthy" if engine_status == "running" else "degraded",
         "component": "harmonia",
         "version": "0.1.0",
-        "message": "Harmonia is healthy" if engine_status == "running" else "Harmonia engine not fully initialized"
+        "port": port,
+        "message": "Harmonia is running normally" if engine_status == "running" else "Harmonia workflow engine not initialized"
     }
 
 

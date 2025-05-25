@@ -14,9 +14,9 @@ from fastapi.responses import JSONResponse
 from ..core.engine import WorkflowEngine
 from ..core.mcp import (
     create_mcp_router,
-    add_standard_mcp_endpoints,
-    register_tools
+    add_standard_mcp_endpoints
 )
+from ..core.mcp.tools import register_tools
 
 # Setup logging
 logger = logging.getLogger(__name__)

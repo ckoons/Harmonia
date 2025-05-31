@@ -1,27 +1,15 @@
-# Core dependencies
-fastapi>=0.100.0
-uvicorn>=0.22.0
-pydantic>=2.0.0
-pydantic-settings>=2.0.0
-python-dotenv>=1.0.0
+# Harmonia requirements - Workflow engine and state management
+# This component handles workflow orchestration and state persistence
 
-# API/Web
-httpx>=0.24.0
-websockets>=11.0.3,<12.0.0
-starlette>=0.31.1
+# Core requirements
+-r ../shared/requirements/base.txt
+-r ../shared/requirements/web.txt
+-r ../shared/requirements/database.txt
+-r ../shared/requirements/utilities.txt
 
 # Tekton integration
 tekton-llm-client>=1.0.0
 tekton-core>=0.1.0
-jinja2>=3.1.2
 
-# Database
-SQLAlchemy>=2.0.0
-
-# Utilities
-tqdm>=4.66.0
-loguru>=0.7.0
-
-# Testing
-pytest>=7.4.0
-pytest-asyncio>=0.21.1
+# Testing (development only)
+-r ../shared/requirements/dev.txt

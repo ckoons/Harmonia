@@ -22,7 +22,8 @@ from fastapi import FastAPI, APIRouter, Depends, HTTPException, WebSocket, Backg
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import Field
+from tekton.models import TektonBaseModel
 
 # Add Tekton root to path if not already present
 tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -419,7 +420,7 @@ async def get_workflow_engine() -> WorkflowEngine:
 
 # --- API Request/Response Models ---
 
-class WorkflowDefinitionCreate(BaseModel):
+class WorkflowDefinitionCreate(TektonBaseModel):
     """Request model for creating a workflow definition."""
     name: str
     description: str = ""
@@ -430,14 +431,14 @@ class WorkflowDefinitionCreate(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-class WorkflowExecutionCreate(BaseModel):
+class WorkflowExecutionCreate(TektonBaseModel):
     """Request model for creating a workflow execution."""
     workflow_id: UUID
     input: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-class TemplateCreate(BaseModel):
+class TemplateCreate(TektonBaseModel):
     """Request model for creating a template."""
     name: str
     description: str = ""
@@ -449,14 +450,14 @@ class TemplateCreate(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-class TemplateInstantiateRequest(BaseModel):
+class TemplateInstantiateRequest(TektonBaseModel):
     """Request model for instantiating a template."""
     template_id: UUID
     parameter_values: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-class WebhookDefinitionCreate(BaseModel):
+class WebhookDefinitionCreate(TektonBaseModel):
     """Request model for creating a webhook definition."""
     name: str
     description: str = ""
@@ -469,7 +470,7 @@ class WebhookDefinitionCreate(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-class APIResponse(BaseModel):
+class APIResponse(TektonBaseModel):
     """Standard API response model."""
     status: str
     message: str
@@ -1705,6 +1706,8 @@ app.include_router(router)
 app.include_router(websocket_router)
 app.include_router(events_router)
 app.include_router(fastmcp_router, prefix="/api/mcp/v2")  # Mount FastMCP router under /api/mcp/v2
+
+# Add shutdown endpoint for proper port cleanup
 
 
 # Main entry point

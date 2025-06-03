@@ -10,7 +10,8 @@ from enum import Enum, auto
 from typing import Dict, List, Optional, Union, Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
+from tekton.models import TektonBaseModel
 
 
 class TaskType(str, Enum):
@@ -51,7 +52,7 @@ class WorkflowStatus(str, Enum):
     CANCELED = "canceled"
 
 
-class RetryPolicy(BaseModel):
+class RetryPolicy(TektonBaseModel):
     """Configuration for automatic retries."""
     
     max_retries: int = Field(3, description="Maximum number of retry attempts")
@@ -75,7 +76,7 @@ class RetryPolicy(BaseModel):
         return v
 
 
-class TaskDefinition(BaseModel):
+class TaskDefinition(TektonBaseModel):
     """Definition of a task in a workflow."""
     
     id: str = Field(..., description="Unique identifier for the task")
@@ -100,7 +101,7 @@ class TaskDefinition(BaseModel):
         return v
 
 
-class WorkflowDefinition(BaseModel):
+class WorkflowDefinition(TektonBaseModel):
     """Definition of a workflow."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the workflow")
@@ -116,7 +117,7 @@ class WorkflowDefinition(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now, description="Last update timestamp")
 
 
-class TaskExecution(BaseModel):
+class TaskExecution(TektonBaseModel):
     """Execution state of a task."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the task execution")
@@ -131,7 +132,7 @@ class TaskExecution(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata for the execution")
 
 
-class WorkflowExecution(BaseModel):
+class WorkflowExecution(TektonBaseModel):
     """Execution state of a workflow."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the workflow execution")
@@ -148,7 +149,7 @@ class WorkflowExecution(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now, description="Last update timestamp")
 
 
-class WorkflowTemplate(BaseModel):
+class WorkflowTemplate(TektonBaseModel):
     """Template for creating workflow definitions."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the template")
@@ -162,7 +163,7 @@ class WorkflowTemplate(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now, description="Last update timestamp")
 
 
-class Webhook(BaseModel):
+class Webhook(TektonBaseModel):
     """Webhook configuration for triggering workflows."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the webhook")

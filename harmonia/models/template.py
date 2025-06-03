@@ -9,12 +9,13 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union, Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, validator
+from pydantic import Field, validator
+from tekton.models import TektonBaseModel
 
 from harmonia.models.workflow import WorkflowDefinition
 
 
-class ParameterDefinition(BaseModel):
+class ParameterDefinition(TektonBaseModel):
     """Definition of a template parameter."""
     
     name: str = Field(..., description="Name of the parameter")
@@ -38,7 +39,7 @@ class ParameterDefinition(BaseModel):
         return v
 
 
-class TemplateVersion(BaseModel):
+class TemplateVersion(TektonBaseModel):
     """Version information for a template."""
     
     version: str = Field(..., description="Version identifier (e.g., '1.0.0')")
@@ -48,7 +49,7 @@ class TemplateVersion(BaseModel):
     changes: Optional[str] = Field(None, description="Description of changes from previous version")
 
 
-class TemplateCategory(BaseModel):
+class TemplateCategory(TektonBaseModel):
     """Category for organizing templates."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the category")
@@ -57,7 +58,7 @@ class TemplateCategory(BaseModel):
     parent_id: Optional[UUID] = Field(None, description="ID of the parent category")
 
 
-class Template(BaseModel):
+class Template(TektonBaseModel):
     """Template for creating workflows."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the template")
@@ -86,7 +87,7 @@ class Template(BaseModel):
         return None
 
 
-class TemplateInstantiation(BaseModel):
+class TemplateInstantiation(TektonBaseModel):
     """Information about a template instantiation."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the instantiation")

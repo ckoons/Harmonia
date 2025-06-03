@@ -10,7 +10,8 @@ from enum import Enum
 from typing import Dict, List, Optional, Union, Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, validator
+from pydantic import Field, validator
+from tekton.models import TektonBaseModel
 
 from harmonia.models.workflow import WorkflowStatus, TaskStatus
 
@@ -37,7 +38,7 @@ class EventType(str, Enum):
     CUSTOM = "custom"
 
 
-class ExecutionEvent(BaseModel):
+class ExecutionEvent(TektonBaseModel):
     """Event that occurred during workflow execution."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the event")
@@ -49,7 +50,7 @@ class ExecutionEvent(BaseModel):
     message: Optional[str] = Field(None, description="Human-readable message about the event")
 
 
-class ExecutionMetrics(BaseModel):
+class ExecutionMetrics(TektonBaseModel):
     """Metrics collected during workflow execution."""
     
     execution_id: UUID = Field(..., description="ID of the workflow execution")
@@ -81,7 +82,7 @@ class ExecutionMetrics(BaseModel):
         return [task_id for task_id, _ in sorted_tasks[:5]]
 
 
-class Checkpoint(BaseModel):
+class Checkpoint(TektonBaseModel):
     """Checkpoint of workflow execution state."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the checkpoint")
@@ -95,7 +96,7 @@ class Checkpoint(BaseModel):
     description: Optional[str] = Field(None, description="Description of the checkpoint")
 
 
-class ExecutionHistory(BaseModel):
+class ExecutionHistory(TektonBaseModel):
     """History of a workflow execution."""
     
     execution_id: UUID = Field(..., description="ID of the workflow execution")
@@ -126,7 +127,7 @@ class ExecutionHistory(BaseModel):
         return [event for event in self.events if event.task_id == task_id]
 
 
-class ExecutionSummary(BaseModel):
+class ExecutionSummary(TektonBaseModel):
     """Summary of a workflow execution."""
     
     id: UUID = Field(..., description="ID of the workflow execution")

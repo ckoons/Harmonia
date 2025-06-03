@@ -28,7 +28,7 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Harmonia Workflow Orchestration Engine")
     
-    parser.add_argument("--port", type=int, default=int(os.environ.get("HARMONIA_PORT", "8002")),
+    parser.add_argument("--port", type=int, default=int(os.environ.get("HARMONIA_PORT")),
                         help="Port to run the API server on")
     parser.add_argument("--host", default=os.environ.get("HARMONIA_HOST", "0.0.0.0"),
                         help="Host to bind the API server to")

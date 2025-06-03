@@ -52,7 +52,7 @@ sleep 2
 
 # Start the Harmonia service
 echo -e "${YELLOW}Starting Harmonia API server...${RESET}"
-python -m harmonia.api.app --port $HARMONIA_PORT > "$HOME/.tekton/logs/harmonia.log" 2>&1 &
+python -m harmonia > "$HOME/.tekton/logs/harmonia.log" 2>&1 &
 HARMONIA_PID=$!
 
 # Trap signals for graceful shutdown

@@ -10,7 +10,8 @@ from enum import Enum
 from typing import Dict, List, Optional, Union, Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, validator, HttpUrl
+from pydantic import Field, validator, HttpUrl
+from tekton.models import TektonBaseModel
 
 
 class WebhookTriggerType(str, Enum):
@@ -35,7 +36,7 @@ class WebhookAuthType(str, Enum):
     CUSTOM = "custom"
 
 
-class WebhookDefinition(BaseModel):
+class WebhookDefinition(TektonBaseModel):
     """Definition of a webhook."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the webhook")
@@ -60,7 +61,7 @@ class WebhookDefinition(BaseModel):
         return v
 
 
-class WebhookEvent(BaseModel):
+class WebhookEvent(TektonBaseModel):
     """Event representing a webhook invocation."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the event")
@@ -75,7 +76,7 @@ class WebhookEvent(BaseModel):
     error: Optional[str] = Field(None, description="Error message if processing failed")
 
 
-class WebhookSubscription(BaseModel):
+class WebhookSubscription(TektonBaseModel):
     """Subscription for receiving webhooks from external systems."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the subscription")
@@ -93,7 +94,7 @@ class WebhookSubscription(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 
-class WebhookDelivery(BaseModel):
+class WebhookDelivery(TektonBaseModel):
     """Record of a webhook delivery attempt."""
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the delivery")

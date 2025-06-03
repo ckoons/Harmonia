@@ -1712,11 +1712,11 @@ app.include_router(fastmcp_router, prefix="/api/mcp/v2")  # Mount FastMCP router
 
 # Main entry point
 if __name__ == "__main__":
-    # Get port from environment variable using standardized port config
-    config = get_component_config()
-    port = config.harmonia.port if hasattr(config, 'harmonia') else int(os.environ.get("HARMONIA_PORT", 8007))
+    from shared.utils.socket_server import run_component_server
     
-    print(f"Starting Harmonia on port {port}...")
-    
-    # Start server
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    run_component_server(
+        component_name="harmonia",
+        app_module="harmonia.api.app",
+        default_port=int(os.environ.get("HARMONIA_PORT")),
+        reload=False
+    )

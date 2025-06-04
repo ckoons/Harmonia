@@ -12,6 +12,7 @@ import os
 import sys
 import json
 import asyncio
+import time
 from typing import Dict, List, Any, Optional, Set, Union
 from uuid import UUID, uuid4
 from datetime import datetime, timedelta
@@ -37,6 +38,11 @@ from shared.utils.env_config import get_component_config
 from shared.utils.errors import StartupError
 from shared.utils.startup import component_startup, StartupMetrics
 from shared.utils.shutdown import GracefulShutdown
+
+# Import shared API utilities
+from shared.api.documentation import get_openapi_configuration
+from shared.api.endpoints import create_ready_endpoint, create_discovery_endpoint, EndpointInfo
+from shared.api.routers import create_standard_routers, mount_standard_routers
 
 from harmonia.core.engine import WorkflowEngine
 from harmonia.core.state import StateManager
@@ -78,6 +84,14 @@ from .fastmcp_endpoints import fastmcp_router, fastmcp_startup, fastmcp_shutdown
 # Configure logger
 logger = setup_component_logging("harmonia")
 
+# Component configuration
+COMPONENT_NAME = "harmonia"
+COMPONENT_VERSION = "0.1.0"
+COMPONENT_DESCRIPTION = "Workflow orchestration and state management service for Tekton ecosystem"
+
+# Global start time for readiness checks
+start_time = time.time()
+
 # Engine state
 workflow_engine: Optional[WorkflowEngine] = None
 
@@ -94,9 +108,9 @@ async def lifespan(app: FastAPI):
         # Register with Hermes
         hermes_registration = HermesRegistration()
         await hermes_registration.register_component(
-            component_name="harmonia",
+            component_name=COMPONENT_NAME,
             port=port,
-            version="0.1.0",
+            version=COMPONENT_VERSION,
             capabilities=[
                 "workflow_orchestration",
                 "state_management",
@@ -104,7 +118,7 @@ async def lifespan(app: FastAPI):
                 "component_coordination"
             ],
             metadata={
-                "description": "Workflow orchestration and state management",
+                "description": COMPONENT_DESCRIPTION,
                 "category": "workflow"
             }
         )
@@ -215,18 +229,15 @@ async def lifespan(app: FastAPI):
         # Add socket release delay for macOS
         await asyncio.sleep(0.5)
 
-# Create main application
+# Create main application with OpenAPI configuration
 app = FastAPI(
-    title="Harmonia Workflow Orchestration API",
-    description="API for managing and executing workflows across Tekton components",
-    version="0.1.0",
+    **get_openapi_configuration(
+        component_name=COMPONENT_NAME,
+        component_version=COMPONENT_VERSION,
+        component_description=COMPONENT_DESCRIPTION
+    ),
     lifespan=lifespan
 )
-
-# Create API router following Single Port Architecture
-router = APIRouter(prefix="/api")
-websocket_router = APIRouter(prefix="/ws")
-events_router = APIRouter(prefix="/events")
 
 # Add CORS middleware
 app.add_middleware(
@@ -236,6 +247,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Create standard routers
+routers = create_standard_routers(COMPONENT_NAME)
+
+# Create specialized routers for WebSocket and SSE
+websocket_router = APIRouter(prefix="/ws")
+events_router = APIRouter(prefix="/events")
 
 # Connection manager for WebSockets
 class ConnectionManager:
@@ -477,14 +495,58 @@ class APIResponse(TektonBaseModel):
     data: Optional[Any] = None
 
 
-# Initialize API routes
+# Add infrastructure endpoints
+@routers.root.get("/ready")
+async def ready():
+    """Readiness check endpoint."""
+    ready_check = create_ready_endpoint(
+        component_name=COMPONENT_NAME,
+        component_version=COMPONENT_VERSION,
+        start_time=start_time,
+        readiness_check=lambda: workflow_engine is not None
+    )
+    return await ready_check()
+
+
+@routers.root.get("/discovery")
+async def discovery():
+    """Service discovery endpoint."""
+    discovery_check = create_discovery_endpoint(
+        component_name=COMPONENT_NAME,
+        component_version=COMPONENT_VERSION,
+        component_description=COMPONENT_DESCRIPTION,
+        endpoints=[
+            EndpointInfo(path="/health", method="GET", description="Health check"),
+            EndpointInfo(path="/ready", method="GET", description="Readiness check"),
+            EndpointInfo(path="/discovery", method="GET", description="Service discovery"),
+            EndpointInfo(path="/api/v1/workflows", method="GET", description="List workflows"),
+            EndpointInfo(path="/api/v1/workflows", method="POST", description="Create workflow"),
+            EndpointInfo(path="/api/v1/executions", method="GET", description="List executions"),
+            EndpointInfo(path="/api/v1/executions", method="POST", description="Create execution"),
+            EndpointInfo(path="/api/v1/templates", method="GET", description="List templates"),
+            EndpointInfo(path="/api/v1/components", method="GET", description="List components"),
+            EndpointInfo(path="/ws/executions/{id}", method="WS", description="Execution WebSocket"),
+            EndpointInfo(path="/events/executions/{id}", method="GET", description="Execution events (SSE)")
+        ],
+        capabilities=[
+            "workflow_orchestration",
+            "state_management",
+            "event_streaming",
+            "component_coordination"
+        ],
+        metadata={
+            "category": "workflow",
+            "event_types": [e.value for e in EventType]
+        }
+    )
+    return await discovery_check()
 
 
 # --- HTTP API Endpoints ---
 
 # Workflow Definition Endpoints
 
-@router.post("/workflows", response_model=APIResponse, status_code=201)
+@routers.v1.post("/workflows", response_model=APIResponse, status_code=201)
 async def create_workflow(
     definition: WorkflowDefinitionCreate,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -528,7 +590,7 @@ async def create_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/workflows", response_model=APIResponse)
+@routers.v1.get("/workflows", response_model=APIResponse)
 async def list_workflows(
     engine: WorkflowEngine = Depends(get_workflow_engine),
     limit: int = Query(100, ge=1, le=1000),
@@ -560,7 +622,7 @@ async def list_workflows(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/workflows/{workflow_id}", response_model=APIResponse)
+@routers.v1.get("/workflows/{workflow_id}", response_model=APIResponse)
 async def get_workflow(
     workflow_id: UUID,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -596,7 +658,7 @@ async def get_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/workflows/{workflow_id}", response_model=APIResponse)
+@routers.v1.put("/workflows/{workflow_id}", response_model=APIResponse)
 async def update_workflow(
     workflow_id: UUID,
     definition: WorkflowDefinitionCreate,
@@ -652,7 +714,7 @@ async def update_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/workflows/{workflow_id}", response_model=APIResponse)
+@routers.v1.delete("/workflows/{workflow_id}", response_model=APIResponse)
 async def delete_workflow(
     workflow_id: UUID,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -693,7 +755,7 @@ async def delete_workflow(
 
 # Workflow Execution Endpoints
 
-@router.post("/executions", response_model=APIResponse, status_code=201)
+@routers.v1.post("/executions", response_model=APIResponse, status_code=201)
 async def create_execution(
     execution: WorkflowExecutionCreate,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -739,7 +801,7 @@ async def create_execution(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/executions", response_model=APIResponse)
+@routers.v1.get("/executions", response_model=APIResponse)
 async def list_executions(
     engine: WorkflowEngine = Depends(get_workflow_engine),
     limit: int = Query(100, ge=1, le=1000),
@@ -784,7 +846,7 @@ async def list_executions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/executions/{execution_id}", response_model=APIResponse)
+@routers.v1.get("/executions/{execution_id}", response_model=APIResponse)
 async def get_execution(
     execution_id: UUID,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -830,7 +892,7 @@ async def get_execution(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/executions/{execution_id}/cancel", response_model=APIResponse)
+@routers.v1.post("/executions/{execution_id}/cancel", response_model=APIResponse)
 async def cancel_execution(
     execution_id: UUID,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -866,7 +928,7 @@ async def cancel_execution(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/executions/{execution_id}/pause", response_model=APIResponse)
+@routers.v1.post("/executions/{execution_id}/pause", response_model=APIResponse)
 async def pause_execution(
     execution_id: UUID,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -902,7 +964,7 @@ async def pause_execution(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/executions/{execution_id}/resume", response_model=APIResponse)
+@routers.v1.post("/executions/{execution_id}/resume", response_model=APIResponse)
 async def resume_execution(
     execution_id: UUID,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -938,7 +1000,7 @@ async def resume_execution(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/executions/{execution_id}/checkpoint", response_model=APIResponse)
+@routers.v1.post("/executions/{execution_id}/checkpoint", response_model=APIResponse)
 async def create_execution_checkpoint(
     execution_id: UUID,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -974,7 +1036,7 @@ async def create_execution_checkpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/checkpoints/{checkpoint_id}/restore", response_model=APIResponse)
+@routers.v1.post("/checkpoints/{checkpoint_id}/restore", response_model=APIResponse)
 async def restore_from_checkpoint(
     checkpoint_id: UUID,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -1012,7 +1074,7 @@ async def restore_from_checkpoint(
 
 # Template Endpoints
 
-@router.post("/templates", response_model=APIResponse, status_code=201)
+@routers.v1.post("/templates", response_model=APIResponse, status_code=201)
 async def create_template(
     template: TemplateCreate,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -1067,7 +1129,7 @@ async def create_template(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/templates", response_model=APIResponse)
+@routers.v1.get("/templates", response_model=APIResponse)
 async def list_templates(
     engine: WorkflowEngine = Depends(get_workflow_engine),
     category_id: Optional[UUID] = Query(None),
@@ -1103,7 +1165,7 @@ async def list_templates(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/templates/{template_id}", response_model=APIResponse)
+@routers.v1.get("/templates/{template_id}", response_model=APIResponse)
 async def get_template(
     template_id: UUID,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -1143,7 +1205,7 @@ async def get_template(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/templates/{template_id}/instantiate", response_model=APIResponse)
+@routers.v1.post("/templates/{template_id}/instantiate", response_model=APIResponse)
 async def instantiate_template(
     template_id: UUID,
     instantiation: TemplateInstantiateRequest,
@@ -1199,7 +1261,7 @@ async def instantiate_template(
 
 # Webhook Endpoints
 
-@router.post("/webhooks", response_model=APIResponse, status_code=201)
+@routers.v1.post("/webhooks", response_model=APIResponse, status_code=201)
 async def create_webhook(
     webhook: WebhookDefinitionCreate,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -1245,7 +1307,7 @@ async def create_webhook(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/webhooks", response_model=APIResponse)
+@routers.v1.get("/webhooks", response_model=APIResponse)
 async def list_webhooks(
     engine: WorkflowEngine = Depends(get_workflow_engine)
 ):
@@ -1273,7 +1335,7 @@ async def list_webhooks(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/webhooks/{webhook_id}/deliver", response_model=APIResponse)
+@routers.v1.post("/webhooks/{webhook_id}/deliver", response_model=APIResponse)
 async def trigger_webhook(
     webhook_id: UUID,
     payload: Dict[str, Any],
@@ -1322,7 +1384,7 @@ async def trigger_webhook(
 
 # Component Endpoints
 
-@router.get("/components", response_model=APIResponse)
+@routers.v1.get("/components", response_model=APIResponse)
 async def list_components(
     engine: WorkflowEngine = Depends(get_workflow_engine)
 ):
@@ -1350,7 +1412,7 @@ async def list_components(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/components/{component_name}/actions", response_model=APIResponse)
+@routers.v1.get("/components/{component_name}/actions", response_model=APIResponse)
 async def list_component_actions(
     component_name: str,
     engine: WorkflowEngine = Depends(get_workflow_engine)
@@ -1389,7 +1451,7 @@ async def list_component_actions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/components/{component_name}/actions/{action}", response_model=APIResponse)
+@routers.v1.get("/components/{component_name}/actions/{action}", response_model=APIResponse)
 async def get_action_schema(
     component_name: str,
     action: str,
@@ -1433,7 +1495,7 @@ async def get_action_schema(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/components/{component_name}/actions/{action}", response_model=APIResponse)
+@routers.v1.post("/components/{component_name}/actions/{action}", response_model=APIResponse)
 async def execute_component_action(
     component_name: str,
     action: str,
@@ -1622,7 +1684,7 @@ async def execution_events(
 
 # --- Status Endpoint ---
 
-@router.get("/status", response_model=APIResponse)
+@routers.v1.get("/status", response_model=APIResponse)
 async def get_status():
     """
     Get the status of the Harmonia service.
@@ -1701,11 +1763,15 @@ async def root():
     }
 
 
-# Include routers in main app
-app.include_router(router)
+# Mount standard routers
+mount_standard_routers(app, routers)
+
+# Include specialized routers
 app.include_router(websocket_router)
 app.include_router(events_router)
-app.include_router(fastmcp_router, prefix="/api/mcp/v2")  # Mount FastMCP router under /api/mcp/v2
+
+# Mount FastMCP router under versioned API
+routers.v1.include_router(fastmcp_router, prefix="/mcp/v2", tags=["MCP"])
 
 # Add shutdown endpoint for proper port cleanup
 

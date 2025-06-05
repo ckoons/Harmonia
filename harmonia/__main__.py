@@ -14,14 +14,18 @@ import argparse
 from typing import Optional
 import uvicorn
 
-from tekton.utils.tekton_logging import setup_logging
+# Add Tekton root to path for shared imports
+tekton_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if tekton_root not in sys.path:
+    sys.path.insert(0, tekton_root)
 
 from harmonia.core.startup_instructions import StartUpInstructions
 from harmonia.core.workflow_startup import WorkflowEngineStartup
 from harmonia.api.app import app
 
-# Configure logger
-logger = logging.getLogger("harmonia")
+# Use shared logging setup
+from shared.utils.logging_setup import setup_component_logging
+logger = setup_component_logging("harmonia")
 
 
 def parse_args():
@@ -126,8 +130,7 @@ def main():
     # Parse command line arguments
     args = parse_args()
     
-    # Setup logging
-    setup_logging(args.log_level)
+    # Logging is already configured at module level via setup_component_logging
     
     if args.init_only:
         # Initialize workflow engine and exit

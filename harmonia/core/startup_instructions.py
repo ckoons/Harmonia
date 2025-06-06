@@ -11,9 +11,18 @@ import logging
 import os
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Any, Optional, Union
+from shared.utils.env_config import get_component_config
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+def _get_hermes_url() -> str:
+    """Get Hermes URL from environment configuration."""
+    config = get_component_config()
+    hermes_port = getattr(config.hermes, "port", 8001) if hasattr(config, "hermes") else 8001
+    hermes_host = os.environ.get("HERMES_HOST", "localhost")
+    return f"http://{hermes_host}:{hermes_port}"
 
 
 @dataclass
@@ -36,7 +45,7 @@ class StartUpInstructions:
     log_level: str = "INFO"
     
     # Component dependencies
-    hermes_url: str = "http://localhost:5000/api"
+    hermes_url: str = field(default_factory=lambda: _get_hermes_url())
     engram_url: Optional[str] = None
     ergon_url: Optional[str] = None
     prometheus_url: Optional[str] = None

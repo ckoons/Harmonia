@@ -1094,8 +1094,20 @@ def get_all_tools(workflow_engine=None):
     
     tools = []
     
-    # For now, just return empty list since Harmonia's FastMCP integration is incomplete
-    # TODO: Implement proper tool conversion when FastMCP signature mismatch is fixed
-    logger.warning("get_all_tools called but FastMCP integration is incomplete")
+    # Get all workflow tools defined in this module
+    all_tools = [
+        create_workflow_definition, update_workflow_definition, delete_workflow_definition,
+        get_workflow_definition, list_workflow_definitions,
+        execute_workflow, cancel_workflow_execution, pause_workflow_execution,
+        resume_workflow_execution, get_workflow_execution_status, list_workflow_executions,
+        create_template, instantiate_template, list_templates,
+        list_components, get_component_actions, execute_component_action
+    ]
     
+    # Convert tools to dict format
+    for tool_func in all_tools:
+        if hasattr(tool_func, '_mcp_tool_meta'):
+            tools.append(tool_func._mcp_tool_meta.to_dict())
+    
+    logger.info(f"get_all_tools returning {len(tools)} Harmonia workflow tools")
     return tools

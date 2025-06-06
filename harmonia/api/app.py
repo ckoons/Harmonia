@@ -207,6 +207,16 @@ async def lifespan(app: FastAPI):
         set_workflow_engine(workflow_engine)
         await fastmcp_startup()
         
+        # Initialize Hermes MCP Bridge
+        try:
+            from harmonia.core.mcp.hermes_bridge import HarmoniaMCPBridge
+            mcp_bridge = HarmoniaMCPBridge(workflow_engine)
+            await mcp_bridge.initialize()
+            app.state.mcp_bridge = mcp_bridge
+            logger.info("Initialized Hermes MCP Bridge for FastMCP tools")
+        except Exception as e:
+            logger.warning(f"Failed to initialize MCP Bridge: {e}")
+        
         yield
         
     except Exception as e:
@@ -225,6 +235,14 @@ async def lifespan(app: FastAPI):
             # Shut down FastMCP
             await fastmcp_shutdown()
             logger.info("Workflow engine shut down")
+        
+        # Cleanup MCP bridge
+        if hasattr(app.state, "mcp_bridge") and app.state.mcp_bridge:
+            try:
+                await app.state.mcp_bridge.shutdown()
+                logger.info("MCP bridge cleaned up")
+            except Exception as e:
+                logger.warning(f"Error cleaning up MCP bridge: {e}")
         
         # Add socket release delay for macOS
         await asyncio.sleep(0.5)

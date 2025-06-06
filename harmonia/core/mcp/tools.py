@@ -1086,3 +1086,16 @@ async def register_tools(
         "results": [],
         "message": "Tool registration skipped due to signature mismatch"
     }
+
+
+def get_all_tools(workflow_engine=None):
+    """Get all Harmonia MCP tools."""
+    from tekton.mcp.fastmcp.schema import MCPTool
+    
+    tools = []
+    
+    # For now, just return empty list since Harmonia's FastMCP integration is incomplete
+    # TODO: Implement proper tool conversion when FastMCP signature mismatch is fixed
+    logger.warning("get_all_tools called but FastMCP integration is incomplete")
+    
+    return tools

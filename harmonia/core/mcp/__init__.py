@@ -22,7 +22,7 @@ from .tools import (
     # Component tools
     list_components, get_component_actions, execute_component_action,
     # Registration
-    register_tools
+    register_tools, get_all_tools
 )
 
 __all__ = [

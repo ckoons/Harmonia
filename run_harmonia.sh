@@ -32,7 +32,8 @@ setup_tekton_env "$SCRIPT_DIR" "$TEKTON_ROOT"
 [ -f "$TEKTON_ROOT/.env.tekton" ] && export $(grep -v '^#' "$TEKTON_ROOT/.env.tekton" | xargs)
 
 # Create log directories
-mkdir -p "$HOME/.tekton/logs"
+LOG_DIR="${TEKTON_LOG_DIR:-$TEKTON_ROOT/.tekton/logs}"
+mkdir -p "$LOG_DIR"
 
 # Error handling function
 handle_error() {
@@ -56,7 +57,7 @@ sleep 2
 
 # Start the Harmonia service
 echo -e "${YELLOW}Starting Harmonia API server...${RESET}"
-python -m harmonia > "$HOME/.tekton/logs/harmonia.log" 2>&1 &
+python -m harmonia > "$LOG_DIR/harmonia.log" 2>&1 &
 HARMONIA_PID=$!
 
 # Trap signals for graceful shutdown
@@ -75,7 +76,7 @@ for i in {1..30}; do
     # Check if the process is still running
     if ! kill -0 $HARMONIA_PID 2>/dev/null; then
         echo -e "${RED}Harmonia process terminated unexpectedly${RESET}"
-        cat "$HOME/.tekton/logs/harmonia.log"
+        cat "$LOG_DIR/harmonia.log"
         handle_error "Harmonia failed to start"
     fi
     

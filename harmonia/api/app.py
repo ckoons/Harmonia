@@ -103,7 +103,7 @@ async def lifespan(app: FastAPI):
     try:
         # Get configuration
         config = get_component_config()
-        port = config.harmonia.port if hasattr(config, 'harmonia') else int(os.environ.get("HARMONIA_PORT", 8007))
+        port = config.harmonia.port if hasattr(config, 'harmonia') else int(os.environ.get("HARMONIA_PORT"))
         
         # Register with Hermes
         hermes_registration = HermesRegistration()
@@ -1737,7 +1737,7 @@ async def health_check():
         Health status information
     """
     config = get_component_config()
-    port = config.harmonia.port if hasattr(config, 'harmonia') else int(os.environ.get("HARMONIA_PORT", 8007))
+    port = config.harmonia.port if hasattr(config, 'harmonia') else int(os.environ.get("HARMONIA_PORT"))
     
     # Check if workflow engine is initialized
     engine_status = "running" if workflow_engine else "not_initialized"
@@ -1798,9 +1798,12 @@ routers.v1.include_router(fastmcp_router, prefix="/mcp/v2", tags=["MCP"])
 if __name__ == "__main__":
     from shared.utils.socket_server import run_component_server
     
+    config = get_component_config()
+    port = config.harmonia.port if hasattr(config, 'harmonia') else int(os.environ.get("HARMONIA_PORT"))
+    
     run_component_server(
         component_name="harmonia",
         app_module="harmonia.api.app",
-        default_port=int(os.environ.get("HARMONIA_PORT")),
+        default_port=port,
         reload=False
     )

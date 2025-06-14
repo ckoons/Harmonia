@@ -81,180 +81,107 @@ from tekton.utils.tekton_errors import TektonNotFoundError as NotFoundError, Dat
 # Import FastMCP endpoints - will be used in lifespan
 from .fastmcp_endpoints import fastmcp_router, fastmcp_startup, fastmcp_shutdown, set_workflow_engine
 
+# Import Harmonia component
+from harmonia.core.harmonia_component import HarmoniaComponent
+
+# Create component singleton
+harmonia_component = HarmoniaComponent()
+
 # Configure logger
 logger = setup_component_logging("harmonia")
 
-# Component configuration
-COMPONENT_NAME = "harmonia"
-COMPONENT_VERSION = "0.1.0"
-COMPONENT_DESCRIPTION = "Workflow orchestration and state management service for Tekton ecosystem"
-
-# Global start time for readiness checks
-start_time = time.time()
-
-# Engine state
-workflow_engine: Optional[WorkflowEngine] = None
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Lifespan context manager for Harmonia"""
-    global workflow_engine
+async def startup_callback():
+    """Initialize Harmonia component (includes Hermes registration)."""
+    # Initialize component (includes Hermes registration and workflow engine setup)
+    await harmonia_component.initialize(
+        capabilities=harmonia_component.get_capabilities(),
+        metadata=harmonia_component.get_metadata()
+    )
     
+    # Get the workflow engine from component
+    workflow_engine = harmonia_component.workflow_engine
+    
+    # Component-specific initialization AFTER component init
+    
+    # Register event handlers for WebSocket broadcasting
+    workflow_engine.register_event_handler(
+        EventType.WORKFLOW_STARTED,
+        lambda event: asyncio.create_task(
+            connection_manager.broadcast_event(event.execution_id, event)
+        )
+    )
+    
+    workflow_engine.register_event_handler(
+        EventType.WORKFLOW_COMPLETED,
+        lambda event: asyncio.create_task(
+            connection_manager.broadcast_event(event.execution_id, event)
+        )
+    )
+    
+    workflow_engine.register_event_handler(
+        EventType.WORKFLOW_FAILED,
+        lambda event: asyncio.create_task(
+            connection_manager.broadcast_event(event.execution_id, event)
+        )
+    )
+    
+    workflow_engine.register_event_handler(
+        EventType.TASK_STARTED,
+        lambda event: asyncio.create_task(
+            connection_manager.broadcast_event(event.execution_id, event)
+        )
+    )
+    
+    workflow_engine.register_event_handler(
+        EventType.TASK_COMPLETED,
+        lambda event: asyncio.create_task(
+            connection_manager.broadcast_event(event.execution_id, event)
+        )
+    )
+    
+    workflow_engine.register_event_handler(
+        EventType.TASK_FAILED,
+        lambda event: asyncio.create_task(
+            connection_manager.broadcast_event(event.execution_id, event)
+        )
+    )
+    
+    # Register event handler for SSE
+    for event_type in EventType:
+        workflow_engine.register_event_handler(
+            event_type,
+            lambda event: asyncio.create_task(
+                event_manager.add_event(event.execution_id, event)
+            )
+        )
+    
+    logger.info("Event handlers registered successfully")
+    
+    # Set workflow engine for FastMCP and initialize
+    set_workflow_engine(workflow_engine)
+    await fastmcp_startup()
+    
+    # Initialize Hermes MCP Bridge
     try:
-        # Get configuration
-        config = get_component_config()
-        port = config.harmonia.port if hasattr(config, 'harmonia') else int(os.environ.get("HARMONIA_PORT"))
-        
-        # Register with Hermes
-        hermes_registration = HermesRegistration()
-        await hermes_registration.register_component(
-            component_name=COMPONENT_NAME,
-            port=port,
-            version=COMPONENT_VERSION,
-            capabilities=[
-                "workflow_orchestration",
-                "state_management",
-                "event_streaming",
-                "component_coordination"
-            ],
-            metadata={
-                "description": COMPONENT_DESCRIPTION,
-                "category": "workflow"
-            }
-        )
-        app.state.hermes_registration = hermes_registration
-        
-        # Start heartbeat task
-        if hermes_registration.is_registered:
-            asyncio.create_task(heartbeat_loop(hermes_registration, "harmonia"))
-        
-        # Get environment variables
-        data_dir = os.environ.get("HARMONIA_DATA_DIR", os.path.expanduser("~/.harmonia"))
-        hermes_url = os.environ.get("HERMES_URL", "http://localhost:8001")
-        log_level = os.environ.get("LOG_LEVEL", "INFO")
-        
-        # Create startup instructions
-        from harmonia.core.startup_instructions import StartUpInstructions
-        instructions = StartUpInstructions(
-            data_directory=data_dir,
-            hermes_url=hermes_url,
-            log_level=log_level,
-            auto_register=True,
-            initialize_db=True,
-            load_previous_state=True
-        )
-        
-        # Initialize workflow engine
-        from harmonia.core.workflow_startup import WorkflowEngineStartup
-        startup = WorkflowEngineStartup(instructions)
-        workflow_engine = await startup.initialize()
-        
-        # Register event handlers for WebSocket broadcasting
-        workflow_engine.register_event_handler(
-            EventType.WORKFLOW_STARTED,
-            lambda event: asyncio.create_task(
-                connection_manager.broadcast_event(event.execution_id, event)
-            )
-        )
-        
-        workflow_engine.register_event_handler(
-            EventType.WORKFLOW_COMPLETED,
-            lambda event: asyncio.create_task(
-                connection_manager.broadcast_event(event.execution_id, event)
-            )
-        )
-        
-        workflow_engine.register_event_handler(
-            EventType.WORKFLOW_FAILED,
-            lambda event: asyncio.create_task(
-                connection_manager.broadcast_event(event.execution_id, event)
-            )
-        )
-        
-        workflow_engine.register_event_handler(
-            EventType.TASK_STARTED,
-            lambda event: asyncio.create_task(
-                connection_manager.broadcast_event(event.execution_id, event)
-            )
-        )
-        
-        workflow_engine.register_event_handler(
-            EventType.TASK_COMPLETED,
-            lambda event: asyncio.create_task(
-                connection_manager.broadcast_event(event.execution_id, event)
-            )
-        )
-        
-        workflow_engine.register_event_handler(
-            EventType.TASK_FAILED,
-            lambda event: asyncio.create_task(
-                connection_manager.broadcast_event(event.execution_id, event)
-            )
-        )
-        
-        # Register event handler for SSE
-        for event_type in EventType:
-            workflow_engine.register_event_handler(
-                event_type,
-                lambda event: asyncio.create_task(
-                    event_manager.add_event(event.execution_id, event)
-                )
-            )
-        
-        logger.info("Workflow engine initialized successfully")
-        
-        # Set workflow engine for FastMCP and initialize
-        set_workflow_engine(workflow_engine)
-        await fastmcp_startup()
-        
-        # Initialize Hermes MCP Bridge
-        try:
-            from harmonia.core.mcp.hermes_bridge import HarmoniaMCPBridge
-            mcp_bridge = HarmoniaMCPBridge(workflow_engine)
-            await mcp_bridge.initialize()
-            app.state.mcp_bridge = mcp_bridge
-            logger.info("Initialized Hermes MCP Bridge for FastMCP tools")
-        except Exception as e:
-            logger.warning(f"Failed to initialize MCP Bridge: {e}")
-        
-        yield
-        
+        from harmonia.core.mcp.hermes_bridge import HarmoniaMCPBridge
+        harmonia_component.mcp_bridge = HarmoniaMCPBridge(workflow_engine)
+        await harmonia_component.mcp_bridge.initialize()
+        logger.info("Initialized Hermes MCP Bridge for FastMCP tools")
     except Exception as e:
-        logger.error(f"Error during startup: {e}")
-        raise
+        logger.warning(f"Failed to initialize MCP Bridge: {e}")
     
-    finally:
-        # Shutdown logic
-        logger.info("Shutting down Harmonia...")
-        
-        # Deregister from Hermes
-        if hasattr(app.state, "hermes_registration") and app.state.hermes_registration:
-            await app.state.hermes_registration.deregister("harmonia")
-        
-        if workflow_engine:
-            # Shut down FastMCP
-            await fastmcp_shutdown()
-            logger.info("Workflow engine shut down")
-        
-        # Cleanup MCP bridge
-        if hasattr(app.state, "mcp_bridge") and app.state.mcp_bridge:
-            try:
-                await app.state.mcp_bridge.shutdown()
-                logger.info("MCP bridge cleaned up")
-            except Exception as e:
-                logger.warning(f"Error cleaning up MCP bridge: {e}")
-        
-        # Add socket release delay for macOS
-        await asyncio.sleep(0.5)
+    # Store connection managers in component for cleanup
+    harmonia_component.connection_manager = connection_manager
+    harmonia_component.event_manager = event_manager
 
-# Create main application with OpenAPI configuration
-app = FastAPI(
+# Create FastAPI app using component
+app = harmonia_component.create_app(
+    startup_callback=startup_callback,
     **get_openapi_configuration(
-        component_name=COMPONENT_NAME,
-        component_version=COMPONENT_VERSION,
-        component_description=COMPONENT_DESCRIPTION
-    ),
-    lifespan=lifespan
+        component_name="harmonia",
+        component_version="0.1.0",
+        component_description="Workflow orchestration and state management service for Tekton ecosystem"
+    )
 )
 
 # Add CORS middleware
@@ -267,7 +194,7 @@ app.add_middleware(
 )
 
 # Create standard routers
-routers = create_standard_routers(COMPONENT_NAME)
+routers = create_standard_routers("harmonia")
 
 # Create specialized routers for WebSocket and SSE
 websocket_router = APIRouter(prefix="/ws")
@@ -449,9 +376,9 @@ async def get_workflow_engine() -> WorkflowEngine:
     Raises:
         HTTPException: If the engine is not initialized
     """
-    if workflow_engine is None:
+    if harmonia_component.workflow_engine is None:
         raise HTTPException(status_code=503, detail="Workflow engine not initialized")
-    return workflow_engine
+    return harmonia_component.workflow_engine
 
 
 # --- API Request/Response Models ---
@@ -518,10 +445,10 @@ class APIResponse(TektonBaseModel):
 async def ready():
     """Readiness check endpoint."""
     ready_check = create_ready_endpoint(
-        component_name=COMPONENT_NAME,
-        component_version=COMPONENT_VERSION,
-        start_time=start_time,
-        readiness_check=lambda: workflow_engine is not None
+        component_name="harmonia",
+        component_version="0.1.0",
+        start_time=harmonia_component.global_config._start_time,
+        readiness_check=lambda: harmonia_component.workflow_engine is not None
     )
     return await ready_check()
 
@@ -530,9 +457,9 @@ async def ready():
 async def discovery():
     """Service discovery endpoint."""
     discovery_check = create_discovery_endpoint(
-        component_name=COMPONENT_NAME,
-        component_version=COMPONENT_VERSION,
-        component_description=COMPONENT_DESCRIPTION,
+        component_name="harmonia",
+        component_version="0.1.0",
+        component_description="Workflow orchestration and state management service for Tekton ecosystem",
         endpoints=[
             EndpointInfo(path="/health", method="GET", description="Health check"),
             EndpointInfo(path="/ready", method="GET", description="Readiness check"),
@@ -1711,6 +1638,7 @@ async def get_status():
         Service status information
     """
     # Check if workflow engine is initialized
+    workflow_engine = harmonia_component.workflow_engine
     engine_status = "running" if workflow_engine else "not_initialized"
     
     return APIResponse(
@@ -1740,12 +1668,11 @@ async def health_check():
     port = config.harmonia.port if hasattr(config, 'harmonia') else int(os.environ.get("HARMONIA_PORT"))
     
     # Check if workflow engine is initialized
+    workflow_engine = harmonia_component.workflow_engine
     engine_status = "running" if workflow_engine else "not_initialized"
     
     # Check if registered with Hermes
-    registered = False
-    if hasattr(app.state, "hermes_registration") and app.state.hermes_registration:
-        registered = app.state.hermes_registration.is_registered
+    registered = harmonia_component.global_config.is_registered_with_hermes
     
     return {
         "status": "healthy" if engine_status == "running" else "degraded",
@@ -1765,6 +1692,7 @@ async def root():
     Returns:
         Basic service information
     """
+    workflow_engine = harmonia_component.workflow_engine
     return {
         "name": "Harmonia Workflow System",
         "version": "0.1.0",
@@ -1793,6 +1721,8 @@ routers.v1.include_router(fastmcp_router, prefix="/mcp/v2", tags=["MCP"])
 
 # Add shutdown endpoint for proper port cleanup
 
+# Store component in app state for access by endpoints
+app.state.component = harmonia_component
 
 # Main entry point
 if __name__ == "__main__":

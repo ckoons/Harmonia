@@ -26,6 +26,7 @@ from harmonia.api.app import app
 # Use shared logging setup
 from shared.utils.logging_setup import setup_component_logging
 from shared.utils.env_config import get_component_config
+from shared.utils.global_config import GlobalConfig
 logger = setup_component_logging("harmonia")
 
 
@@ -33,16 +34,16 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Harmonia Workflow Orchestration Engine")
     
-    config = get_component_config()
-    default_port = config.harmonia.port if hasattr(config, 'harmonia') else int(os.environ.get("HARMONIA_PORT"))
+    # Get port from GlobalConfig
+    global_config = GlobalConfig.get_instance()
+    default_port = global_config.config.harmonia.port
     parser.add_argument("--port", type=int, default=default_port,
                         help="Port to run the API server on")
     parser.add_argument("--host", default=os.environ.get("HARMONIA_HOST", "0.0.0.0"),
                         help="Host to bind the API server to")
     parser.add_argument("--data-dir", default=os.environ.get("HARMONIA_DATA_DIR", os.path.expanduser("~/.harmonia")),
                         help="Directory for storing Harmonia data")
-    config = get_component_config()
-    hermes_port = getattr(config.hermes, "port", 8001) if hasattr(config, "hermes") else 8001
+    hermes_port = global_config.config.hermes.port if hasattr(global_config.config, "hermes") else 8001
     hermes_host = os.environ.get("HERMES_HOST", "localhost")
     default_hermes_url = f"http://{hermes_host}:{hermes_port}"
     parser.add_argument("--hermes-url", default=os.environ.get("HERMES_URL", default_hermes_url),
